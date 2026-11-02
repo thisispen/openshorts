@@ -2706,6 +2706,11 @@ app.include_router(_mcp_server.router)
 import free_tools as _free_tools
 app.include_router(_free_tools.router)
 
+# Topic-to-channel research API (/api/research): public Reel metadata, rights-gated
+# media analysis, hook classification, cohorts. Answers 503 until RESEARCH_API_TOKEN is set.
+import research.api as _research_api
+app.include_router(_research_api.router)
+
 # Enable CORS for frontend. Cloud mode locks this down to the configured origins;
 # self-host keeps the permissive wildcard it has always used.
 app.add_middleware(
