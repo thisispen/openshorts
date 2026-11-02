@@ -1,0 +1,186 @@
+{
+  "name": "Clip Factory - Topic Intake (persists via OpenShorts /api/research)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Clip Factory: topic intake\n\nPOST a topic, get a persisted research job back.\n\n1. **Settings** node: set `openshorts_url` to your remote OpenShorts host (never expose it without RESEARCH_API_TOKEN).\n2. Credential **OpenShorts research token** (Header Auth): Name `X-Research-Token`, Value = the server's RESEARCH_API_TOKEN.\n3. Credential **Clip Factory intake secret** (Header Auth) on the webhook: Name `X-Intake-Secret`, Value = a long random string. Callers must send it.\n\nTest body: `{ \"topic\": \"science myths\", \"clips_per_run\": 1, \"language\": \"en\", \"idempotency_key\": \"smoke-test-0001\" }`\n\nNo scraping, AI generation, publishing or paid call happens here.",
+        "height": 420,
+        "width": 520
+      },
+      "id": "note-readme",
+      "name": "Read me first",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -120,
+        -420
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clip-factory-topic",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "topic-intake",
+      "name": "Topic intake",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "5b0f2e64-0c7e-4a63-9a43-6e1f0c2d7a10",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Clip Factory intake secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "s1",
+              "name": "openshorts_url",
+              "value": "http://YOUR-OPENSHORTS-HOST:8000",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "settings",
+      "name": "Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Shape the webhook body into the research API request. Validation lives in\n// the API (one source of truth): bad input comes back as its 422 response.\nconst src = $('Topic intake').first().json;\nconst d = src.body ?? {};\nconst headers = src.headers ?? {};\nconst pick = (k) => (d[k] === undefined || d[k] === null || d[k] === '') ? undefined : d[k];\nconst request = {\n  topic: typeof d.topic === 'string' ? d.topic.trim() : d.topic,\n  language: pick('language'),\n  country: pick('country'),\n  audience: pick('audience'),\n  style: pick('style'),\n  lookback_days: pick('lookback_days'),\n  target_duration_s: pick('target_duration_s'),\n  audience_goal: pick('audience_goal'),\n  channels: pick('channels'),\n  clips_per_run: pick('clips_per_run'),\n  daily_budget_usd: pick('daily_budget_usd'),\n  // Retries with the same key return the same job instead of a new one.\n  idempotency_key: pick('idempotency_key') ?? headers['idempotency-key'],\n};\nObject.keys(request).forEach((k) => request[k] === undefined && delete request[k]);\nreturn [{ json: { request } }];"
+      },
+      "id": "normalize",
+      "name": "Normalize topic request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Settings').first().json.openshorts_url }}/api/research/topic-jobs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "create-job",
+      "name": "Create research job",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "OpenShorts research token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "responseCode": "={{ $json.statusCode }}"
+        }
+      },
+      "id": "respond",
+      "name": "Return job",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Topic intake": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Normalize topic request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize topic request": {
+      "main": [
+        [
+          {
+            "node": "Create research job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create research job": {
+      "main": [
+        [
+          {
+            "node": "Return job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

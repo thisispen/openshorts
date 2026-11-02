@@ -1,0 +1,4 @@
+# Research module (/api/research) on PostgreSQL. Installed on top of requirements.txt
+# on the remote host. SQLite (tests, dry runs) needs nothing extra.
+sqlalchemy==2.0.36
+psycopg[binary]==3.2.3
